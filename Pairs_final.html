@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>记忆翻牌 - 百化分特训</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { 
+  font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', 'PingFang SC', sans-serif; 
+  background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); 
+  min-height: 100vh; 
+  color: #fff; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  padding: 12px; 
+  touch-action: manipulation; /* 核心：禁用双击缩放，提升点击响应 */
+  -webkit-touch-callout: none; /* 禁用长按弹出菜单 */
+  user-select: none;
+}
+
+#setup-screen { 
+  max-width: 620px; width: 100%; 
+  background: rgba(255,255,255,.96); color: #333; 
+  border-radius: 16px; padding: 24px 18px; 
+  box-shadow: 0 10px 40px rgba(0,0,0,.35); 
+}
+#setup-screen h2 { text-align: center; color: #1a1a2e; margin-bottom: 14px; font-size: 20px; }
+.rules-box { 
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; 
+  padding: 12px 14px; margin-bottom: 16px; font-size: 13px; line-height: 1.8; 
+}
+.rules-box b { color: #d32f2f; }
+.form-group { margin-bottom: 14px; }
+.form-group > label { display: block; font-weight: bold; margin-bottom: 6px; color: #444; font-size: 14px; }
+.form-group input[type=text] { 
+  width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; 
+  font-size: 16px; /* 防止iOS输入时自动放大页面 */
+  transition: .3s; 
+}
+.form-group input[type=text]:focus { border-color: #5c6bc0; outline: none; }
+.cb-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.cb-group label { 
+  font-weight: normal; cursor: pointer; background: #f0f0f0; 
+  padding: 8px 12px; border-radius: 18px; font-size: 13px; transition: .2s; 
+  display: flex; align-items: center;
+}
+.cb-group label:hover { background: #e0e0e0; }
+.cb-group input { margin-right: 4px; transform: scale(1.1); } /* 放大复选框方便点击 */
+.btn { 
+  padding: 12px 24px; min-height: 48px; /* 移动端触控最低标准 */
+  font-size: 15px; border: none; border-radius: 8px; cursor: pointer; 
+  font-weight: bold; transition: .2s; width: 100%;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: #5c6bc0; color: #fff; }
+.btn-success { background: #43a047; color: #fff; }
+.btn-danger { background: #e53935; color: #fff; }
+.center { text-align: center; margin-top: 10px; }
+
+#game-screen { display: none; max-width: 720px; width: 100%; }
+#header { 
+  display: flex; justify-content: space-between; align-items: center; 
+  margin-bottom: 10px; padding: 10px 14px; 
+  background: rgba(255,255,255,.1); border-radius: 10px; backdrop-filter: blur(6px); 
+}
+#timer { font-size: 22px; font-weight: bold; color: #66bb6a; min-width: 110px; text-align: center;}
+#total-penalty-display { 
+  font-size: 13px; font-weight: bold; color: #ff8a80; 
+  background: rgba(255,82,82,.15); padding: 6px 12px; border-radius: 18px; text-align: right;
+}
+#board { 
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; /* 移动端减小间距 */
+}
+
+.card { aspect-ratio: 3/4; cursor: pointer; perspective: 800px; }
+.card-inner { position: relative; width: 100%; height: 100%; transition: transform .4s ease; transform-style: preserve-3d; }
+.card.flipped .card-inner, .card.matched .card-inner { transform: rotateY(180deg); }
+.card-back, .card-front { 
+  position: absolute; width: 100%; height: 100%; backface-visibility: hidden; 
+  border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; 
+}
+.card-back { 
+  background: linear-gradient(135deg, #7e57c2, #5c6bc0); 
+  border: 2px solid rgba(255,255,255,.25); box-shadow: 0 2px 6px rgba(0,0,0,.25); 
+}
+.card-back::before { 
+  content: '?'; font-size: 1.8em; color: rgba(255,255,255,.3); 
+  position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); 
+}
+.card-front { 
+  background: #fff; color: #333; transform: rotateY(180deg); 
+  border: 2px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,.12); padding: 4px; 
+}
+.card.matched .card-front { background: #e8f5e9; border-color: #66bb6a; }
+.card-content { 
+  font-size: 0.95em; font-weight: bold; text-align: center; 
+  flex: 1; display: flex; justify-content: center; align-items: center; line-height: 1.2;
+}
+.card-num { 
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); 
+  font-size: 0.9em; font-weight: bold; z-index: 2; 
+}
+.ng { color: #43a047; }
+.nr { color: #e53935; }
+
+.frac { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.frac .nu { border-bottom: 1.5px solid #333; padding: 0 2px 1px; font-size: 0.9em; }
+.frac .de { padding: 1px 2px 0; font-size: 0.9em; }
+
+#result-modal { 
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+  background: rgba(0,0,0,.7); justify-content: center; align-items: center; 
+  z-index: 1000; padding: 20px; 
+}
+.modal-box { 
+  background: #fff; color: #333; padding: 24px 20px; border-radius: 16px; 
+  width: 100%; max-width: 420px; text-align: center; 
+  box-shadow: 0 20px 60px rgba(0,0,0,.35); max-height: 85vh; overflow-y: auto; 
+}
+.modal-box h2 { color: #1a1a2e; margin-bottom: 12px; font-size: 20px; }
+.modal-box p { font-size: 14px; margin: 6px 0; text-align: left; line-height: 1.6; }
+.modal-box .hl { font-weight: bold; color: #d32f2f; font-size: 18px; text-align: center; margin: 10px 0; }
+.modal-box .msg { font-weight: bold; font-size: 17px; text-align: center; margin: 10px 0; }
+.modal-box hr { margin: 12px 0; border: none; border-top: 1px solid #e0e0e0; }
+.modal-btns { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.modal-btns .btn { width: 100%; }
+
+/* 针对极小屏幕的进一步优化 */
+@media (max-width: 360px) {
+  .card-content { font-size: 0.85em; }
+  .frac .nu, .frac .de { font-size: 0.85em; }
+  #timer { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+
+<div id="setup-screen">
+  <h2>🃏 记忆翻牌 · 百化分特训</h2>
+  <div class="rules-box">
+    <b>🎯 目标与玩法</b><br>
+    在20张牌里找出9对百分数与分数（小心那2张坑人的干扰项哦~😈）<br>
+    每多翻一次牌就会离危险更近一步呢~<br><br>
+    <b>⚠️ 惩罚规则</b><br>
+    😈 总挨打数 = (超时秒数 +超限步数) × 5，工具姿势随机掉落，准备好哭着受罚求饶了吗？😈🔥
+  </div>
+  <div class="form-group">
+    <label>玩家A（游戏者）姓名：</label>
+    <input type="text" id="inpA" placeholder="请输入游戏者姓名" autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label>玩家B（执行者）姓名：</label>
+    <input type="text" id="inpB" placeholder="请输入执行者姓名" autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label>可接受的工具（可多选）：</label>
+    <div class="cb-group">
+      <label><input type="checkbox" name="tool" value="木板" checked> 木板</label>
+      <label><input type="checkbox" name="tool" value="戒尺" checked> 戒尺</label>
+      <label><input type="checkbox" name="tool" value="藤条" checked> 藤条</label>
+      <label><input type="checkbox" name="tool" value="热熔胶棒" checked> 热熔胶棒</label>
+      <label><input type="checkbox" name="tool" value="小红" checked> 小红</label>
+      <label><input type="checkbox" name="tool" value="小绿" checked> 小绿</label>
+      <label><input type="checkbox" name="tool" value="小黑" checked> 小黑</label>
+      <label><input type="checkbox" name="tool" value="亚克力板" checked> 亚克力板</label>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>可接受的姿势（可多选）：</label>
+    <div class="cb-group">
+      <label><input type="checkbox" name="pose" value="otk" checked> otk</label>
+      <label><input type="checkbox" name="pose" value="平趴" checked> 平趴</label>
+      <label><input type="checkbox" name="pose" value="跪撅" checked> 跪撅</label>
+      <label><input type="checkbox" name="pose" value="尿布式" checked> 尿布式</label>
+    </div>
+  </div>
+  <div class="center"><button class="btn btn-primary" onclick="startGame()">开始游戏</button></div>
+</div>
+
+<div id="game-screen">
+  <div id="header">
+    <div id="timer">60</div>
+    <div id="total-penalty-display">累计惩罚：0 下</div>
+  </div>
+  <div id="board"></div>
+</div>
+
+<div id="result-modal">
+  <div class="modal-box">
+    <h2 id="modalTitle">🏁 游戏结束</h2>
+    <p class="msg" id="rMsg" style="display:none"></p>
+    <p id="rTime" style="display:none"></p>
+    <p id="rStep" style="display:none"></p>
+    <p class="hl" id="rTotal" style="display:none"></p>
+    <hr id="rHr" style="display:none">
+    <p id="rTarget" style="display:none"></p>
+    <p id="rExec" style="display:none"></p>
+    <p id="rNum" style="display:none"></p>
+    <p id="rTool" style="display:none"></p>
+    <p id="rPose" style="display:none"></p>
+    <div class="modal-btns">
+      <button class="btn btn-success" id="btnDone" onclick="onExecuted()">✅ 已执行</button>
+      <button class="btn btn-primary" id="btnRestart" style="display:none" onclick="restartGame()">🔄 重新开始</button>
+      <button class="btn btn-danger" id="btnReset" style="display:none" onclick="resetAll()">🗑️ 重置数据</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ALL=[
+["1%","1/100"],["2%","1/50"],["2.2%","1/45"],["2.4%","1/42"],["2.5%","1/40"],
+["2.7%","1/37"],["3%","1/33.3"],["3.3%","1/30"],["3.4%","1/29"],["3.5%","1/28.6"],
+["3.6%","1/28"],["3.7%","1/27"],["3.8%","1/26"],["4%","1/25"],["4.2%","1/24"],
+["4.3%","1/23"],["4.5%","1/22"],["4.8%","1/21"],["5%","1/20"],["5.3%","1/19"],
+["5.4%","1/18.5"],["5.6%","1/18"],["5.7%","1/17.5"],["5.9%","1/17"],["6%","1/16.5"],
+["6.25%","1/16"],["6.45%","1/15.5"],["6.7%","1/15"],["6.9%","1/14.5"],["7.1%","1/14"],
+["7.4%","1/13.5"],["7.7%","1/13"],["8%","1/12.5"],["8.3%","1/12"],["8.7%","1/11.5"],
+["9.1%","1/11"],["9.5%","1/10.5"],["10%","1/10"],["10.5%","1/9.5"],["11.1%","1/9"],
+["11.8%","1/8.5"],["12%","1/8.3"],["12.5%","1/8"],["13%","1/7.7"],["13.3%","1/7.5"],
+["14%","1/7.1"],["14.3%","1/7"],["15%","1/6.7"],["15.4%","1/6.5"],["16%","1/6.25"],
+["16.7%","1/6"],["17%","1/5.9"],["18%","1/5.6"],["19%","1/5.3"],["20%","1/5"],
+["22.2%","1/4.5"],["25%","1/4"],["27%","1/3.7"],["28.6%","1/3.5"],["30%","1/3.3"],
+["33.3%","1/3"],["37%","1/2.7"],["40%","1/2.5"],["42%","1/2.4"],["50%","1/2"],
+["67%","1/1.5"]
+];
+
+let pA='', pB='', tools=[], poses=[];
+let totalPen = 0;
+let cards = [], flipped = [], matched = 0;
+let tLeft = 60, overT = 0, timer = null, busy = false;
+
+function shuffle(a) {
+  let b = [...a];
+  for (let i = b.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [b[i], b[j]] = [b[j], b[i]];
+  }
+  return b;
+}
+
+function isFrac(v) { return v.includes('/'); }
+function fracHTML(v) {
+  let p = v.split('/');
+  return '<div class="frac"><span class="nu">' + p[0] + '</span><span class="de">' + p[1] + '</span></div>';
+}
+function cardHTML(v) { return isFrac(v) ? fracHTML(v) : v; }
+
+function numInfo(fc) {
+  if (fc <= 2) return { n: 3 - fc, cls: 'ng' };
+  if (fc === 3) return { n: 0, cls: 'nr' };
+  return { n: fc - 3, cls: 'nr' };
+}
+
+function startGame() {
+  pA = document.getElementById('inpA').value.trim();
+  pB = document.getElementById('inpB').value.trim();
+  if (!pA || !pB) { alert('请输入两位玩家的姓名！'); return; }
+  tools = [...document.querySelectorAll('input[name=tool]:checked')].map(e => e.value);
+  poses = [...document.querySelectorAll('input[name=pose]:checked')].map(e => e.value);
+  if (!tools.length || !poses.length) { alert('请至少选择一种工具和一种姿势！'); return; }
+  
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  initRound();
+}
+
+function initRound() {
+  clearInterval(timer);
+  let sh = shuffle(ALL);
+  let sel = sh.slice(0, 9), rem = sh.slice(9);
+  let ip = rem.slice(0, 2);
+  let i1 = Math.random() < .5 ? ip[0][0] : ip[0][1];
+  let i2 = Math.random() < .5 ? ip[1][0] : ip[1][1];
+
+  cards = [];
+  sel.forEach((p, i) => {
+    cards.push({ v: p[0], pid: i, fc: 0, ok: false });
+    cards.push({ v: p[1], pid: i, fc: 0, ok: false });
+  });
+  cards.push({ v: i1, pid: -1, fc: 0, ok: false });
+  cards.push({ v: i2, pid: -2, fc: 0, ok: false });
+  cards = shuffle(cards);
+
+  flipped = []; matched = 0; tLeft = 60; overT = 0; busy = false;
+  renderBoard();
+  updatePenaltyDisplay();
+  startTimer();
+}
+
+function renderBoard() {
+  let bd = document.getElementById('board');
+  bd.innerHTML = '';
+  cards.forEach((c, i) => {
+    let d = document.createElement('div');
+    d.className = 'card'; d.dataset.i = i;
+    let info = numInfo(c.fc);
+    d.innerHTML =
+      '<div class="card-inner">' +
+        '<div class="card-back"><span class="card-num ' + info.cls + '">' + info.n + '</span></div>' +
+        '<div class="card-front">' +
+          '<div class="card-content">' + cardHTML(c.v) + '</div>' +
+          '<span class="card-num ' + info.cls + '">' + info.n + '</span>' +
+        '</div>' +
+      '</div>';
+    
+    // 移动端优化：使用 pointerup 确保触摸响应迅速且无延迟
+    d.addEventListener('pointerup', (e) => {
+      e.preventDefault(); // 防止触发默认行为
+      flip(i);
+    });
+    
+    bd.appendChild(d);
+  });
+}
+
+function refreshNums() {
+  document.querySelectorAll('.card').forEach((el, i) => {
+    let c = cards[i], info = numInfo(c.fc);
+    let bn = el.querySelector('.card-back .card-num');
+    bn.textContent = info.n; bn.className = 'card-num ' + info.cls;
+    let fn = el.querySelector('.card-front .card-num');
+    fn.textContent = info.n; fn.className = 'card-num ' + info.cls;
+  });
+}
+
+function flip(i) {
+  if (busy) return;
+  let c = cards[i];
+  if (c.ok || flipped.includes(i)) return;
+  if (flipped.length >= 2) return;
+
+  c.fc++;
+  flipped.push(i);
+
+  let el = document.querySelectorAll('.card')[i];
+  el.classList.add('flipped');
+  refreshNums();
+
+  if (flipped.length === 2) {
+    busy = true;
+    let a = flipped[0], b = flipped[1];
+    if (cards[a].pid >= 0 && cards[a].pid === cards[b].pid) {
+      cards[a].ok = true; cards[b].ok = true; matched++;
+      flipped = []; busy = false;
+      document.querySelectorAll('.card')[a].classList.add('matched');
+      document.querySelectorAll('.card')[b].classList.add('matched');
+      refreshNums();
+      if (matched === 9) setTimeout(endGame, 500);
+    } else {
+      setTimeout(() => {
+        document.querySelectorAll('.card')[a].classList.remove('flipped');
+        document.querySelectorAll('.card')[b].classList.remove('flipped');
+        flipped = []; busy = false;
+      }, 600);
+    }
+  }
+}
+
+function startTimer() {
+  clearInterval(timer);
+  showTimer();
+  timer = setInterval(() => {
+    if (tLeft > 0) tLeft--; else overT++;
+    showTimer();
+  }, 1000);
+}
+
+function showTimer() {
+  let el = document.getElementById('timer');
+  if (tLeft > 0) { el.textContent = tLeft + 's'; el.style.color = '#66bb6a'; }
+  else { el.textContent = '超时' + overT + '秒'; el.style.color = '#ef5350'; }
+}
+
+function updatePenaltyDisplay() {
+  document.getElementById('total-penalty-display').textContent = '累计惩罚：' + totalPen + ' 下';
+}
+
+function endGame() {
+  clearInterval(timer);
+  let redSum = 0;
+  cards.forEach(c => { if (c.fc > 3) redSum += (c.fc - 3); });
+  let tP = overT * 5, sP = redSum * 5, tot = tP + sP;
+
+  document.getElementById('modalTitle').textContent = '🏁 游戏结束';
+
+  if (tot === 0) {
+    document.getElementById('rMsg').style.display = 'block';
+    document.getElementById('rMsg').textContent = '🎉 恭喜 ' + pA + ' 顺利通关！';
+    document.getElementById('rMsg').style.color = '#43a047';
+
+    ['rTime','rStep','rTotal','rHr','rTarget','rExec','rNum','rTool','rPose'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+
+    document.getElementById('result-modal').style.display = 'flex';
+    document.getElementById('btnDone').style.display = 'none';
+    document.getElementById('btnRestart').style.display = 'block';
+    document.getElementById('btnReset').style.display = 'block';
+  } else {
+    totalPen += tot;
+    updatePenaltyDisplay();
+
+    document.getElementById('rMsg').style.display = 'block';
+    document.getElementById('rMsg').textContent = '嘿嘿受罚吧😈';
+    document.getElementById('rMsg').style.color = '#d32f2f';
+
+    document.getElementById('rTime').style.display = 'block';
+    document.getElementById('rTime').textContent = '时间超限惩罚：' + tP + ' 下';
+    document.getElementById('rStep').style.display = 'block';
+    document.getElementById('rStep').textContent = '步数超限惩罚：' + sP + ' 下';
+    document.getElementById('rTotal').style.display = 'block';
+    document.getElementById('rTotal').textContent = '合计惩罚：' + tot + ' 下';
+
+    let tool = tools[Math.floor(Math.random() * tools.length)];
+    let pose = poses[Math.floor(Math.random() * poses.length)];
+
+    document.getElementById('rHr').style.display = 'block';
+    document.getElementById('rTarget').style.display = 'block';
+    document.getElementById('rTarget').textContent = '被惩罚者：' + pA;
+    document.getElementById('rExec').style.display = 'block';
+    document.getElementById('rExec').textContent = '执行者：' + pB;
+    document.getElementById('rNum').style.display = 'block';
+    document.getElementById('rNum').textContent = '惩罚数目：' + tot;
+    document.getElementById('rTool').style.display = 'block';
+    document.getElementById('rTool').textContent = '工具：' + tool;
+    document.getElementById('rPose').style.display = 'block';
+    document.getElementById('rPose').textContent = '姿势：' + pose;
+
+    document.getElementById('result-modal').style.display = 'flex';
+    document.getElementById('btnDone').style.display = 'block';
+    document.getElementById('btnRestart').style.display = 'none';
+    document.getElementById('btnReset').style.display = 'none';
+  }
+}
+
+function onExecuted() {
+  document.getElementById('btnDone').style.display = 'none';
+  document.getElementById('btnRestart').style.display = 'block';
+  document.getElementById('btnReset').style.display = 'block';
+}
+
+function restartGame() {
+  document.getElementById('result-modal').style.display = 'none';
+  initRound();
+}
+
+function resetAll() {
+  document.getElementById('result-modal').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'block';
+  totalPen = 0;
+  updatePenaltyDisplay();
+  document.getElementById('inpA').value = '';
+  document.getElementById('inpB').value = '';
+  document.querySelectorAll('input[type=checkbox]').forEach(e => e.checked = true);
+}
+</script>
+</body>
+</html>
